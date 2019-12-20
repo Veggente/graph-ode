@@ -16,6 +16,8 @@ Functions:
     repressilator_ode: Right-hand side of an arbitrary
         repressilator network ODE.
     normalize: Normalize data.
+    fit_and_compare: Fit data and plot comparison.
+    fit_synthetic: Generate synthetic data and fit.
 
 Classes:
     FitArgs: Fitting arguments.
@@ -74,6 +76,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
                 )*(
                 v['beta_12_3']
                 )
+        max_beta_3 = v['beta_12_3']
     # Complex binding enhancer.
     elif module_type[0] == 1:
         module_effect_3 = (
@@ -85,6 +88,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
             )*(
             v['beta_12_3']
             )
+        max_beta_3 = v['beta_12_3']
     # Two enhancer modules.
     elif module_type[0] == 2:
         module_effect_3 = (
@@ -96,6 +100,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
             /(1+(x[6]/v['mm_23'])**v['hill_23'])
             *v['beta_2_3']
             )
+        max_beta_3 = v['beta_1_3']+v['beta_2_3']
     else:
         raise Exception
     # Independent binding enhancer.
@@ -108,6 +113,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
                 )*(
                 v['beta_34_5']
                 )
+        max_beta_5 = v['beta_34_5']
     # Independent binding silencer.
     elif module_type[1] == 1:
         module_effect_5 = -(
@@ -118,6 +124,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
                 )*(
                 v['beta_34_5']
                 )
+        max_beta_5 = v['beta_34_5']
     # Complex binding enhancer.
     elif module_type[1] == 2:
         module_effect_5 = (
@@ -130,6 +137,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
                 v['beta_34_5']
                 )
             )
+        max_beta_5 = v['beta_34_5']
     # Complex binding silencer.
     elif module_type[1] == 3:
         module_effect_5 = -(
@@ -142,6 +150,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
                 v['beta_34_5']
                 )
             )
+        max_beta_5 = v['beta_34_5']
     # Two modules.
     elif module_type[1] == 4:
         module_effect_5 = (
@@ -152,6 +161,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
             /(1+(x[8]/v['mm_45'])**v['hill_45'])
             *v['beta_4_5']
             )
+        max_beta_5 = v['beta_3_5']+v['beta_4_5']
     if col1a_activates_e1:
         beta_sign = 1
     else:
@@ -161,23 +171,23 @@ def flower_ode(x, t, param_dict, sat, module_type,
             v['alpha_1']
             + beta_sign*(x[6]/v['mm_21'])**v['hill_21']
             /(1+(x[6]/v['mm_21'])**v['hill_21'])*v['beta_2_1'],
-            sat) - v['delta_1']*x[0],
+            sat) - (v['alpha_1']+v['beta_2_1'])*x[0],
         saturation(
             v['alpha_2']
             + (x[5]/v['mm_12'])**v['hill_12']
             /(1+(x[5]/v['mm_12'])**v['hill_12'])*v['beta_1_2'],
-            sat) - v['delta_2']*x[1],
+            sat) - (v['alpha_2']+v['beta_1_2'])*x[1],
         saturation(
             v['alpha_3']+module_effect_3, sat
-            ) - v['delta_3']*x[2],
+            ) - (v['alpha_3']+max_beta_3)*x[2],
         saturation(
             v['alpha_4']
             - 1/(1+(x[6]/v['mm_24'])**v['hill_24'])
             *v['beta_2_4'],
-            sat) - v['delta_4']*x[3],
+            sat) - (v['alpha_4']+v['beta_2_4'])*x[3],
         saturation(
             v['alpha_5']+module_effect_5, sat
-            ) - v['delta_5']*x[4],
+            ) - (v['alpha_5']+max_beta_5)*x[4],
         v['lambda_1']*(x[0]-x[5]),
         v['lambda_2']*(x[1]-x[6]),
         v['lambda_3']*(x[2]-x[7]),
@@ -301,16 +311,16 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode):
                        max=1)
     else:
         raise ValueError
-    fit_params.add('delta_1', value=0.2*np.random.rand(), min=0,
-                   max=0.2)
-    fit_params.add('delta_2', value=0.2*np.random.rand(), min=0,
-                   max=0.2)
-    fit_params.add('delta_3', value=0.2*np.random.rand(), min=0,
-                   max=0.2)
-    fit_params.add('delta_4', value=0.2*np.random.rand(), min=0,
-                   max=0.2)
-    fit_params.add('delta_5', value=0.2*np.random.rand(), min=0,
-                   max=0.2)
+#     fit_params.add('delta_1', value=0.2*np.random.rand(), min=0,
+#                    max=0.2)
+#     fit_params.add('delta_2', value=0.2*np.random.rand(), min=0,
+#                    max=0.2)
+#     fit_params.add('delta_3', value=0.2*np.random.rand(), min=0,
+#                    max=0.2)
+#     fit_params.add('delta_4', value=0.2*np.random.rand(), min=0,
+#                    max=0.2)
+#     fit_params.add('delta_5', value=0.2*np.random.rand(), min=0,
+#                    max=0.2)
     fit_params.add('lambda_1', value=0.2*np.random.rand(), min=0,
                    max=0.2)
     fit_params.add('lambda_2', value=0.2*np.random.rand(), min=0,
@@ -338,7 +348,7 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode):
 def fit_expression(hill_dict, sat, niter, x_data, output, tol,
                    disp, show_legend, span, module_type,
                    col1a_activates_e1, ode_func=flower_ode,
-                   show_protein=False):
+                   show_protein=False, plot=True):
     """Fit the flowering model to data.
 
     Args:
@@ -371,28 +381,29 @@ def fit_expression(hill_dict, sat, niter, x_data, output, tol,
             t is a scalar.  For flower_ode args are (param_dict,
             sat, module_type, col1a_activates_e1).  For other
             callables args are (param_dict, sat).
-
         show_protein: bool
             Indicator to show proteins as well as mRNAs.
+        plot: bool
+            Plot figure.
 
     Returns: lmfit.minimizer.MinimizerResult
         Display and return optimization result.
     """
-    x_data_normalized = normalize(x_data, 'sqrt-quad')
     # Optimize parameters.
     fit_params = get_params(hill_dict, span, module_type, ode_func)
     minner = Minimizer(
         res_flower_ode, fit_params, fcn_args=(
-            x_data_normalized, sat, module_type,
+            x_data, sat, module_type,
             col1a_activates_e1, ode_func
             )
         )
     result = minner.minimize(method='basinhopping', niter=niter,
                              minimizer_kwargs={'tol': tol})
-    num_genes = x_data.shape[1]
-    plot_fit(num_genes, result, sat, module_type, show_legend,
-             disp, output, x_data_normalized, col1a_activates_e1,
-             ode_func=ode_func, show_protein=show_protein)
+    if plot:
+        num_genes = x_data.shape[1]
+        plot_fit(num_genes, result, sat, module_type, show_legend,
+                 disp, output, x_data, col1a_activates_e1,
+                 ode_func=ode_func, show_protein=show_protein)
     return result
 
 
@@ -461,13 +472,26 @@ def plot_fit(num_genes, result, sat, module_type, show_legend,
     else:
         lgd = None
     if disp:
-        print('Number of function evaluations:', result.nfev)
-        print('AIC:', result.aic)
-        print('Square root of average square of difference:',
-              np.sqrt(np.mean(result.residual**2)))
+        show_opt_result(result)
     if output:
         fig.savefig(output, bbox_extra_artists=(lgd,),
                     bbox_inches='tight')
+
+
+def show_opt_result(result):
+    """Show optimization result.
+
+    Args:
+        result: lmfit.minimizer.MinimizerResult
+            Optimization result.
+
+    Return: None
+        Print result.
+    """
+    print('Number of function evaluations:', result.nfev)
+    print('AIC:', result.aic)
+    print('Square root of average square of difference:',
+          np.sqrt(np.mean(result.residual**2)))
 
 
 def res_flower_ode(params, x_data, sat, module_type,
@@ -673,7 +697,7 @@ class FitArgs:
 
     def __init__(self, span, module_type, niter, tol,
                  ode_func=flower_ode, photoperiod='LD',
-                 temperature='25'):
+                 temperature='25', col1a_activates_e1=True, data_type='real'):
         """Initialization.
 
         Args:
@@ -696,7 +720,18 @@ class FitArgs:
                 Photoperiod.
             temperature: str
                 Temperature.
+            col1a_activates_e1: bool, optional
+                COL1a gene activates E1 if True.
+                COL1a gene represses E1 if False.
+                For ode_func=flower_ode only.
+            data_type: str
+                Data type used to determine the prefix of output files.  Can be 'real', 'synthetic', 'random', or 'non-csa'.
+                    'real': Fitting to real RNA-seq data.
+                    'synthetic': Fitting to synthetic flowering data.
+                    'random': Fitting to reflected Brownian motions.
+                    'non-csa': Fitting to Jaeger network (non-CSA).
         """
+        self.ode_func = ode_func
         if ode_func == flower_ode:
             self.hill_dict = {'12': 2, '21': 2, '13': 2, '23': 2,
                               '24': 2, '35': 2, '45': 2}
@@ -711,10 +746,17 @@ class FitArgs:
         self.module_type = module_type
         self.niter = niter
         self.tol = tol
-        self.output = 'flower-p{}-t{}-s{}-m{}{}'.format(
-            self.photoperiod, self.temperature, self.span,
-            *self.module_type
-            )
+        if data_type == 'real':
+            self.output = 'flower-p{}-t{}-s{}-m{}{}'.format(
+                self.photoperiod, self.temperature, self.span,
+                *self.module_type
+                )
+        elif data_type == 'synthetic':
+            self.output = 'synthetic-s{}-o{}-m{}{}-c{}-n{}-t{}'.format(
+                self.span, self.ode_func.__name__, *self.module_type, col1a_activates_e1, self.niter, self.tol
+                )
+        else:
+            raise ValueError
         self.gene_list = [
             'Glyma.06G207800', 'Glyma.08G255200',
             'Glyma.08G363100',
@@ -723,6 +765,7 @@ class FitArgs:
         self.disp = True
         self.show_legend = True
         self.exp_file = 'expression-2017-multicol-flowering.csv'
+        self.col1a_activates_e1 = col1a_activates_e1
 
 
 def fit_soybean_flower_from_pickle(module_type, pickle_file,
@@ -801,23 +844,23 @@ def repressilator_ode(x, t, param_dict, sat):
         saturation(
             v['alpha_1']
             +1/(1+(x[7]/v['mm_31'])**v['hill_31'])*v['beta_3_1'],
-            sat) - v['delta_1']*x[0],
+            sat) - (v['alpha_1']+v['beta_3_1'])*x[0],
         saturation(
             v['alpha_2']
             +1/(1+(x[5]/v['mm_12'])**v['hill_12'])*v['beta_1_2'],
-            sat) - v['delta_2']*x[1],
+            sat) - (v['alpha_2']+v['beta_1_2'])*x[1],
         saturation(
             v['alpha_3']
             +1/(1+(x[8]/v['mm_43'])**v['hill_43'])*v['beta_4_3'],
-            sat) - v['delta_3']*x[2],
+            sat) - (v['alpha_3']+v['beta_4_3'])*x[2],
         saturation(
             v['alpha_4']
             +1/(1+(x[9]/v['mm_54'])**v['hill_54'])*v['beta_5_4'],
-            sat) - v['delta_4']*x[3],
+            sat) - (v['alpha_4']+v['beta_5_4'])*x[3],
         saturation(
             v['alpha_5']
             +1/(1+(x[6]/v['mm_25'])**v['hill_25'])*v['beta_2_5'],
-            sat) - v['delta_5']*x[4],
+            sat) - (v['alpha_5']+v['beta_2_5'])*x[4],
         v['lambda_1']*(x[0]-x[5]),
         v['lambda_2']*(x[1]-x[6]),
         v['lambda_3']*(x[2]-x[7]),
@@ -859,3 +902,84 @@ def normalize(data, method='two-norm-no-rescale'):
         /np.abs(data_normalized_by_gene).max()
         )
     return data_normalized_global
+
+
+def fit_and_compare(x_sampled, args, x_true_cont):
+    """Fit the data and compare.
+
+    Args:
+        x_sampled: array
+            A T-by-10 matrix with T being the number of samples and n the number of genes.
+        args: FitArgs
+            Fitting arguments.
+        x_true_cont: array
+            A C-by-10 matrix with C being the number of times points for a continuous plot and n the number of genes.
+
+    Returns: lmfit.minimizer.MinimizerResult
+        Fit result.
+    """
+    start_time = time.time()
+    num_cont_times = x_true_cont.shape[0]
+    num_samp_times = x_sampled.shape[0]
+    num_genes = 5
+    col1a_activates_e1 = True
+    result = fit_expression(
+        args.hill_dict, args.sat, args.niter, x_sampled[:, 0:num_genes], '', args.tol,
+        True, args.show_legend, args.span, args.module_type, col1a_activates_e1, ode_func=args.ode_func, plot=False
+        )
+    end_time = time.time()
+    print('Time elapsed:', end_time-start_time)
+    show_opt_result(result)
+    # Compare trajectories.
+    x_fit_cont_correct = solve_flower_ode(result.params, args.sat, num_cont_times, num_genes, args.module_type, col1a_activates_e1, ode_func=args.ode_func)
+    fig, ax = plt.subplots()
+    for i in range(5):
+        ax.plot(np.linspace(0, args.span, num_cont_times), x_true_cont[:, i], label='gene {}'.format(i+1))
+    ax.set_prop_cycle(None)
+    ax.plot(np.linspace(0, args.span, num_cont_times), x_fit_cont_correct[:, 0:5], '--')
+    ax.set_prop_cycle(None)
+    ax.plot(np.linspace(0, args.span, num_samp_times), x_sampled[:, 0:5], 'o')
+    lgd = ax.legend(bbox_to_anchor=(0., 1.02, 1., .102),
+                    loc=3, ncol=1, borderaxespad=0.)
+    if args.output:
+        fig.savefig(args.output+'.eps', bbox_extra_artists=(lgd,),
+                    bbox_inches='tight')
+        pickle.dump({'result': result},
+            open(args.output+'.pkl', 'wb'))
+
+
+def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1=True, niter=10, tol=0.01):
+    """Generate data using optimized parameters for independent modules.
+
+    Args:
+        span_fit: float, optional
+            Span for fitting.
+        module_type_fit: list, optional
+            Module types for fitting.
+        ode_func_fit: callable, optional
+            Function for fitting.
+        col1a_activates_e1: bool, optional
+            Col1a activates E1.
+        niter: int, optional
+            Number of iterations.
+        tol: float, optional
+            Tolerance.
+
+    Returns: None
+        Saves figure, and optimization result in pickle file.
+    """
+    # Generate data.
+    np.random.seed(0)
+    span = 6
+    module_type = [0, 0]
+    num_cont_times = 121
+    num_samp_times = 7
+    num_genes = 5
+    col1a_activates_e1 = True
+    args_gen = FitArgs(span, module_type, niter, tol)
+    params = get_params(args.hill_dict, span, module_type)
+    x_sampled = solve_flower_ode(params, args.sat, num_samp_times, num_genes, module_type, col1a_activates_e1)
+    x_true_cont = solve_flower_ode(params, args.sat, num_cont_times, num_genes, module_type, col1a_activates_e1)
+    # Fit data.
+    args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1, data_type='synthetic')
+    fit_and_compare(x_sampled, args_fit, x_true_cont)
