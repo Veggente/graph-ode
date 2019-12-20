@@ -27,6 +27,7 @@ import numpy as np
 from scipy.integrate import odeint
 from lmfit import Parameters, Minimizer
 import pickle
+import time
 # Plotting module.
 import sys
 if sys.platform == 'darwin':
@@ -485,13 +486,16 @@ def show_opt_result(result):
         result: lmfit.minimizer.MinimizerResult
             Optimization result.
 
-    Return: None
-        Print result.
+    Return: str
+        Optimization result.
     """
-    print('Number of function evaluations:', result.nfev)
-    print('AIC:', result.aic)
-    print('Square root of average square of difference:',
-          np.sqrt(np.mean(result.residual**2)))
+    return """Number of function evaluations: {}
+AIC: {}
+Square root of average square of difference: {}
+        """.format(
+            result.nfev, result.aic,
+            np.sqrt(np.mean(result.residual**2))
+            )
 
 
 def res_flower_ode(params, x_data, sat, module_type,
@@ -928,8 +932,9 @@ def fit_and_compare(x_sampled, args, x_true_cont):
         True, args.show_legend, args.span, args.module_type, col1a_activates_e1, ode_func=args.ode_func, plot=False
         )
     end_time = time.time()
-    print('Time elapsed:', end_time-start_time)
-    show_opt_result(result)
+    with open(args.output+'.txt', 'w+') as f:
+        f.write('Time elapsed: '+str(end_time-start_time)+'\n')
+        f.write(show_opt_result(result))
     # Compare trajectories.
     x_fit_cont_correct = solve_flower_ode(result.params, args.sat, num_cont_times, num_genes, args.module_type, col1a_activates_e1, ode_func=args.ode_func)
     fig, ax = plt.subplots()
@@ -977,9 +982,9 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
     num_genes = 5
     col1a_activates_e1 = True
     args_gen = FitArgs(span, module_type, niter, tol)
-    params = get_params(args.hill_dict, span, module_type)
-    x_sampled = solve_flower_ode(params, args.sat, num_samp_times, num_genes, module_type, col1a_activates_e1)
-    x_true_cont = solve_flower_ode(params, args.sat, num_cont_times, num_genes, module_type, col1a_activates_e1)
+    params = get_params(args_gen.hill_dict, span, module_type)
+    x_sampled = solve_flower_ode(params, args_gen.sat, num_samp_times, num_genes, module_type, col1a_activates_e1)
+    x_true_cont = solve_flower_ode(params, args_gen.sat, num_cont_times, num_genes, module_type, col1a_activates_e1)
     # Fit data.
     args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1, data_type='synthetic')
     fit_and_compare(x_sampled, args_fit, x_true_cont)
