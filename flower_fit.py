@@ -953,7 +953,7 @@ def fit_and_compare(x_sampled, args, x_true_cont):
             open(args.output+'.pkl', 'wb'))
 
 
-def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1=True, niter=10, tol=0.01):
+def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1_fit=True, niter=10, tol=0.01, gen_net='flower', rand_seed=0):
     """Generate data using optimized parameters for independent modules.
 
     Args:
@@ -963,28 +963,50 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
             Module types for fitting.
         ode_func_fit: callable, optional
             Function for fitting.
-        col1a_activates_e1: bool, optional
-            Col1a activates E1.
+        col1a_activates_e1_fit: bool, optional
+            Col1a activates E1 for fitting.
         niter: int, optional
             Number of iterations.
         tol: float, optional
             Tolerance.
+        gen_net: str, optional
+            Data generation network.  Can be 'flower' or 'brownian'.
+                'flower': Generate data using the flowering network with modules [0, 0] and Col1a activating E1.
+                'brownian': Generate data with a reflected Brownian motion.
 
     Returns: None
         Saves figure, and optimization result in pickle file.
     """
     # Generate data.
-    np.random.seed(0)
+    np.random.seed(rand_seed)
     span = 6
-    module_type = [0, 0]
     num_cont_times = 121
     num_samp_times = 7
     num_genes = 5
-    col1a_activates_e1 = True
-    args_gen = FitArgs(span, module_type, niter, tol)
-    params = get_params(args_gen.hill_dict, span, module_type)
-    x_sampled = solve_flower_ode(params, args_gen.sat, num_samp_times, num_genes, module_type, col1a_activates_e1)
-    x_true_cont = solve_flower_ode(params, args_gen.sat, num_cont_times, num_genes, module_type, col1a_activates_e1)
+    args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1_fit, data_type='synthetic')
+    if gen_net == 'flower':
+        args_fit.output = args_fit.output+'-fl'
+        module_type = [0, 0]
+        col1a_activates_e1_real = True
+        args_gen = FitArgs(span, module_type, niter, tol)
+        params = get_params(args_gen.hill_dict, span, module_type)
+        x_sampled = solve_flower_ode(params, args_gen.sat, num_samp_times, num_genes, module_type, col1a_activates_e1_real)
+        x_true_cont = solve_flower_ode(params, args_gen.sat, num_cont_times, num_genes, module_type, col1a_activates_e1_real)
+    elif gen_net == 'brownian':
+        args_fit.output = args_fit.output+'-bm'
+        step_size = 0.05
+        x_true_cont = np.empty((num_cont_times, num_genes*2))
+        x_true_cont[0, :] = np.random.rand(num_genes*2)
+        for i in range(num_cont_times-1):
+            for j in range(num_genes*2):
+                # Project increment to [-0.5, 0.5] to make sure at least one of x+increment and x-increment is in [0, 1].
+                increment = max(min(np.random.randn()*step_size, 0.5), -0.5)
+                if x_true_cont[i, j]+increment > 1 or x_true_cont[i, j]+increment < 0:
+                    x_true_cont[i+1, j] = x_true_cont[i, j]-increment
+                else:
+                    x_true_cont[i+1, j] = x_true_cont[i, j]+increment
+        x_sampled = x_true_cont[0:num_cont_times:int((num_cont_times-1)/(num_samp_times-1)), :]
+    else:
+        raise ValueError
     # Fit data.
-    args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1, data_type='synthetic')
     fit_and_compare(x_sampled, args_fit, x_true_cont)
