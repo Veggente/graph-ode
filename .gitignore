@@ -1,3 +1,4 @@
 *.eps
 *.txt
 *.pkl
+__pycache__/

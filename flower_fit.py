@@ -197,7 +197,7 @@ def flower_ode(x, t, param_dict, sat, module_type,
         ])
 
 
-def get_params(hill_dict, span, module_type, ode_func=flower_ode):
+def get_params(hill_dict, span, module_type, ode_func=flower_ode, num_exp=1):
     """Get Parameters object.
 
     Args:
@@ -213,6 +213,8 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode):
             t is a scalar.  For flower_ode args are (param_dict,
             sat, module_type, col1a_activates_e1).  For other
             callables args are (param_dict, sat).
+        num_exp: int, optional
+            Number of experiments.
 
     Returns: lmfit.Parameter
         ODE parameters.
@@ -312,16 +314,6 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode):
                        max=1)
     else:
         raise ValueError
-#     fit_params.add('delta_1', value=0.2*np.random.rand(), min=0,
-#                    max=0.2)
-#     fit_params.add('delta_2', value=0.2*np.random.rand(), min=0,
-#                    max=0.2)
-#     fit_params.add('delta_3', value=0.2*np.random.rand(), min=0,
-#                    max=0.2)
-#     fit_params.add('delta_4', value=0.2*np.random.rand(), min=0,
-#                    max=0.2)
-#     fit_params.add('delta_5', value=0.2*np.random.rand(), min=0,
-#                    max=0.2)
     fit_params.add('lambda_1', value=0.2*np.random.rand(), min=0,
                    max=0.2)
     fit_params.add('lambda_2', value=0.2*np.random.rand(), min=0,
@@ -332,17 +324,12 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode):
                    max=0.2)
     fit_params.add('lambda_5', value=0.2*np.random.rand(), min=0,
                    max=0.2)
-    fit_params.add('x_1', value=np.random.rand(), min=0, max=1)
-    fit_params.add('y_1', value=np.random.rand(), min=0, max=1)
-    fit_params.add('x_2', value=np.random.rand(), min=0, max=1)
-    fit_params.add('y_2', value=np.random.rand(), min=0, max=1)
-    fit_params.add('x_3', value=np.random.rand(), min=0, max=1)
-    fit_params.add('y_3', value=np.random.rand(), min=0, max=1)
-    fit_params.add('x_4', value=np.random.rand(), min=0, max=1)
-    fit_params.add('y_4', value=np.random.rand(), min=0, max=1)
-    fit_params.add('x_5', value=np.random.rand(), min=0, max=1)
-    fit_params.add('y_5', value=np.random.rand(), min=0, max=1)
+    for i in range(1, num_exp+1):
+        for j in range(1, 6):
+            fit_params.add('x_{}_{}'.format(i, j), value=np.random.rand(), min=0, max=1)
+            fit_params.add('y_{}_{}'.format(i, j), value=np.random.rand(), min=0, max=1)
     fit_params.add('span', value=span, vary=False)
+    fit_params.add('num_exp', value=num_exp, vary=False)
     return fit_params
 
 
@@ -360,7 +347,10 @@ def fit_expression(hill_dict, sat, niter, x_data, output, tol,
         niter: int
             Number of iterations.
         x_data: array
-            2D array of mRNA concentration data.
+            3D array of mRNA concentration data.
+            axis 0: experiments.
+            axis 1: times.
+            axis 2: genes.
         output: str
             Output filename.
         tol: float
@@ -390,8 +380,9 @@ def fit_expression(hill_dict, sat, niter, x_data, output, tol,
     Returns: lmfit.minimizer.MinimizerResult
         Display and return optimization result.
     """
+    num_exp = x_data.shape[0]
     # Optimize parameters.
-    fit_params = get_params(hill_dict, span, module_type, ode_func)
+    fit_params = get_params(hill_dict, span, module_type, ode_func=ode_func, num_exp=num_exp)
     minner = Minimizer(
         res_flower_ode, fit_params, fcn_args=(
             x_data, sat, module_type,
@@ -401,7 +392,7 @@ def fit_expression(hill_dict, sat, niter, x_data, output, tol,
     result = minner.minimize(method='basinhopping', niter=niter,
                              minimizer_kwargs={'tol': tol})
     if plot:
-        num_genes = x_data.shape[1]
+        num_genes = x_data.shape[2]
         plot_fit(num_genes, result, sat, module_type, show_legend,
                  disp, output, x_data, col1a_activates_e1,
                  ode_func=ode_func, show_protein=show_protein)
@@ -429,7 +420,7 @@ def plot_fit(num_genes, result, sat, module_type, show_legend,
         output: str
             Output filename.
         x_data_normalized: array
-            2D array of normalized mRNA concentration data.
+            3D array of normalized mRNA concentration data.
         col1a_activates_e1: bool
             COL1a gene activates E1 if True.
             COL1a gene represses E1 if False.
@@ -445,38 +436,40 @@ def plot_fit(num_genes, result, sat, module_type, show_legend,
     Returns: None
         Plots fitting figure and saves to file.
     """
-    fig, ax = plt.subplots()
+    num_exp = x_data_normalized.shape[0]
     x_opt = solve_flower_ode(
         result.params, sat, 101, num_genes, module_type,
         col1a_activates_e1, ode_func
         )
-    for i in range(num_genes):
-        ax.plot(np.linspace(0, result.params['span'], 101),
-                x_opt[:, i],
-                label='sim, gene {} mRNA'.format(i+1))
-    if show_protein:
-        ax.set_prop_cycle(None)
+    for j in range(num_exp):
+        fig, ax = plt.subplots()
         for i in range(num_genes):
             ax.plot(np.linspace(0, result.params['span'], 101),
-                    x_opt[:, i+num_genes], '--',
-                    label='sim, gene {} protein'.format(i+1))
-    ax.set_prop_cycle(None)
-    for i in range(num_genes):
-        ax.plot(np.linspace(0, result.params['span'], 7),
-                x_data_normalized[:, i], 'o',
-                label='data, gene {} mRNA (normalized)'.format(
-                    i+1
-                    ))
-    if show_legend:
-        lgd = ax.legend(bbox_to_anchor=(0., 1.02, 1., .102),
-                        loc=3, ncol=1, borderaxespad=0.)
-    else:
-        lgd = None
-    if disp:
-        show_opt_result(result)
-    if output:
-        fig.savefig(output, bbox_extra_artists=(lgd,),
-                    bbox_inches='tight')
+                    x_opt[j, :, i],
+                    label='sim, gene {} mRNA'.format(i+1))
+        if show_protein:
+            ax.set_prop_cycle(None)
+            for i in range(num_genes):
+                ax.plot(np.linspace(0, result.params['span'], 101),
+                        x_opt[j, :, i+num_genes], '--',
+                        label='sim, gene {} protein'.format(i+1))
+        ax.set_prop_cycle(None)
+        for i in range(num_genes):
+            ax.plot(np.linspace(0, result.params['span'], 7),
+                    x_data_normalized[j, :, i], 'o',
+                    label='data, gene {} mRNA (normalized)'.format(
+                        i+1
+                        ))
+        if show_legend:
+            lgd = ax.legend(bbox_to_anchor=(0., 1.02, 1., .102),
+                            loc=3, ncol=1, borderaxespad=0.)
+        else:
+            lgd = None
+        if disp:
+            show_opt_result(result)
+        if output:
+            fig.savefig(output, bbox_extra_artists=(lgd,),
+                        bbox_inches='tight')
 
 
 def show_opt_result(result):
@@ -506,7 +499,10 @@ def res_flower_ode(params, x_data, sat, module_type,
         param: lmfit.Parameters
             All parameters.
         x_data: array
-            2D array of mRNA expression in data.
+            3D array of mRNA concentration data.
+            axis 0: experiments.
+            axis 1: times.  Assume there are at least two times.
+            axis 2: genes.
         sat: str
             Saturation of production rate.
         col1a_activates_e1: bool
@@ -520,18 +516,14 @@ def res_flower_ode(params, x_data, sat, module_type,
             callables args are (param_dict, sat).
 
     Returns: array
-        The 2-D array of the residual.
+        The 3-D array of the residual.
     """
-    num_times = x_data.shape[0]
-    if len(x_data.shape) == 1:
-        x_data = np.reshape(x_data, (x_data.shape[0], 1))
-        num_genes = 1
-    else:
-        num_genes = x_data.shape[1]
+    num_times = x_data.shape[1]
+    num_genes = x_data.shape[2]
     sol = solve_flower_ode(
         params.valuesdict(), sat, num_times, num_genes,
         module_type, col1a_activates_e1, ode_func
-        )[:, :num_genes]
+        )[:, :, :num_genes]
     return sol-x_data
 
 
@@ -617,24 +609,26 @@ def solve_flower_ode(param_dict, sat, num_times, num_genes,
             callables args are (param_dict, sat).
 
     Returns: array
-        The 2D <time points>-by-<mRNA and protein> array
+        The 3D <experiments>-by-<time points>-by-<mRNA and protein> array
         of concentrations.
     """
-    x_init = []
-    for i in range(1, num_genes+1):
-        x_init.append(param_dict['x_{}'.format(i)])
-    for i in range(1, num_genes+1):
-        x_init.append(param_dict['y_{}'.format(i)])
-    span = param_dict['span']
-    times = np.linspace(0, span, num_times)
-    if ode_func == flower_ode:
-        x = odeint(ode_func, x_init, times,
-                   args=(param_dict, sat, module_type,
-                         col1a_activates_e1))
-    else:
-        x = odeint(ode_func, x_init, times,
-                   args=(param_dict, sat))
-    return x
+    x = []
+    for j in range(1, param_dict['num_exp']+1):
+        x_init = []
+        for i in range(1, num_genes+1):
+            x_init.append(param_dict['x_{}_{}'.format(j, i)])
+        for i in range(1, num_genes+1):
+            x_init.append(param_dict['y_{}_{}'.format(j, i)])
+        span = param_dict['span']
+        times = np.linspace(0, span, num_times)
+        if ode_func == flower_ode:
+            x.append(odeint(ode_func, x_init, times,
+                            args=(param_dict, sat, module_type,
+                             col1a_activates_e1)))
+        else:
+            x.append(odeint(ode_func, x_init, times,
+                            args=(param_dict, sat)))
+    return np.asarray(x)
 
 
 def fit_soybean_flower(span, niter, tol, rand_seed,
@@ -701,7 +695,7 @@ class FitArgs:
 
     def __init__(self, span, module_type, niter, tol,
                  ode_func=flower_ode, photoperiod='LD',
-                 temperature='25', col1a_activates_e1=True, data_type='real'):
+                 temperature='25', col1a_activates_e1=True, data_type='real', num_exp=1):
         """Initialization.
 
         Args:
@@ -734,6 +728,8 @@ class FitArgs:
                     'synthetic': Fitting to synthetic flowering data.
                     'random': Fitting to reflected Brownian motions.
                     'non-csa': Fitting to Jaeger network (non-CSA).
+            num_exp: int, optional
+                Number of experiments.
         """
         self.ode_func = ode_func
         if ode_func == flower_ode:
@@ -750,14 +746,15 @@ class FitArgs:
         self.module_type = module_type
         self.niter = niter
         self.tol = tol
+        self.num_exp = num_exp
         if data_type == 'real':
             self.output = 'flower-p{}-t{}-s{}-m{}{}'.format(
                 self.photoperiod, self.temperature, self.span,
                 *self.module_type
                 )
         elif data_type == 'synthetic':
-            self.output = 'synthetic-s{}-o{}-m{}{}-c{}-n{}-t{}'.format(
-                self.span, self.ode_func.__name__, *self.module_type, col1a_activates_e1, self.niter, self.tol
+            self.output = 'synthetic-s{}-o{}-m{}{}-c{}-n{}-t{}-e{}'.format(
+                self.span, self.ode_func.__name__, *self.module_type, col1a_activates_e1, self.niter, self.tol, self.num_exp
                 )
         else:
             raise ValueError
@@ -913,48 +910,46 @@ def fit_and_compare(x_sampled, args, x_true_cont):
 
     Args:
         x_sampled: array
-            A T-by-10 matrix with T being the number of samples and n the number of genes.
+            A M-by-T-by-10 3D array with M being the number of experiments, T the number of samples, and 5 genes.
         args: FitArgs
             Fitting arguments.
         x_true_cont: array
-            A C-by-10 matrix with C being the number of times points for a continuous plot and n the number of genes.
+            A M-by-C-by-10 3D array with M being the number of experiments, C the number of times points for a continuous plot and, 5 genes.
 
     Returns: lmfit.minimizer.MinimizerResult
-        Fit result.
+        Fit result.  Also saves result to files.
     """
     start_time = time.time()
-    num_cont_times = x_true_cont.shape[0]
-    num_samp_times = x_sampled.shape[0]
+    num_cont_times = x_true_cont.shape[1]
+    num_samp_times = x_sampled.shape[1]
     num_genes = 5
-    col1a_activates_e1 = True
     result = fit_expression(
-        args.hill_dict, args.sat, args.niter, x_sampled[:, 0:num_genes], '', args.tol,
-        True, args.show_legend, args.span, args.module_type, col1a_activates_e1, ode_func=args.ode_func, plot=False
+        args.hill_dict, args.sat, args.niter, x_sampled[:, :, 0:num_genes], '', args.tol,
+        False, args.show_legend, args.span, args.module_type, args.col1a_activates_e1, ode_func=args.ode_func, plot=False
         )
     end_time = time.time()
     with open(args.output+'.txt', 'w+') as f:
         f.write('Time elapsed: '+str(end_time-start_time)+'\n')
         f.write(show_opt_result(result))
     # Compare trajectories.
-    x_fit_cont_correct = solve_flower_ode(result.params, args.sat, num_cont_times, num_genes, args.module_type, col1a_activates_e1, ode_func=args.ode_func)
-    fig, ax = plt.subplots()
-    for i in range(5):
-        ax.plot(np.linspace(0, args.span, num_cont_times), x_true_cont[:, i], label='gene {}'.format(i+1))
-    ax.set_prop_cycle(None)
-    ax.plot(np.linspace(0, args.span, num_cont_times), x_fit_cont_correct[:, 0:5], '--')
-    ax.set_prop_cycle(None)
-    ax.plot(np.linspace(0, args.span, num_samp_times), x_sampled[:, 0:5], 'o')
-    lgd = ax.legend(bbox_to_anchor=(0., 1.02, 1., .102),
-                    loc=3, ncol=1, borderaxespad=0.)
-    if args.output:
-        fig.savefig(args.output+'.eps', bbox_extra_artists=(lgd,),
+    x_fit_cont = solve_flower_ode(result.params, args.sat, num_cont_times, num_genes, args.module_type, args.col1a_activates_e1, ode_func=args.ode_func)
+    for j in range(x_sampled.shape[0]):
+        fig, ax = plt.subplots()
+        for i in range(5):
+            ax.plot(np.linspace(0, args.span, num_cont_times), x_true_cont[j, :, i], label='gene {}'.format(i+1))
+        ax.set_prop_cycle(None)
+        ax.plot(np.linspace(0, args.span, num_cont_times), x_fit_cont[j, :, 0:5], '--')
+        ax.set_prop_cycle(None)
+        ax.plot(np.linspace(0, args.span, num_samp_times), x_sampled[j, :, 0:5], 'o')
+        lgd = ax.legend(bbox_to_anchor=(0., 1.02, 1., .102),
+                        loc=3, ncol=1, borderaxespad=0.)
+        fig.savefig(args.output+'-e{}.eps'.format(j), bbox_extra_artists=(lgd,),
                     bbox_inches='tight')
-        pickle.dump({'result': result},
-            open(args.output+'.pkl', 'wb'))
+    pickle.dump({'result': result}, open(args.output+'.pkl', 'wb'))
 
 
-def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1_fit=True, niter=10, tol=0.01, gen_net='flower', rand_seed=0):
-    """Generate data using optimized parameters for independent modules.
+def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1_fit=True, niter=10, tol=0.01, gen_net='flower', rand_seed=0, num_exp=1):
+    """Generate synthetic data and fit the ODE models to the data.
 
     Args:
         span_fit: float, optional
@@ -973,9 +968,11 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
             Data generation network.  Can be 'flower' or 'brownian'.
                 'flower': Generate data using the flowering network with modules [0, 0] and Col1a activating E1.
                 'brownian': Generate data with a reflected Brownian motion.
+        num_exp: int, optional
+            Number of experiments.
 
     Returns: None
-        Saves figure, and optimization result in pickle file.
+        Saves figure and optimization result in files.
     """
     # Generate data.
     np.random.seed(rand_seed)
@@ -983,29 +980,31 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
     num_cont_times = 121
     num_samp_times = 7
     num_genes = 5
-    args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1_fit, data_type='synthetic')
+    args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1_fit, data_type='synthetic', num_exp=num_exp)
     if gen_net == 'flower':
         args_fit.output = args_fit.output+'-fl'
         module_type = [0, 0]
         col1a_activates_e1_real = True
+        # This FitArgs object is only used to get the hill_dict variable.  No actual fitting happens.
         args_gen = FitArgs(span, module_type, niter, tol)
-        params = get_params(args_gen.hill_dict, span, module_type)
+        params = get_params(args_gen.hill_dict, span, module_type, num_exp=num_exp)
         x_sampled = solve_flower_ode(params, args_gen.sat, num_samp_times, num_genes, module_type, col1a_activates_e1_real)
         x_true_cont = solve_flower_ode(params, args_gen.sat, num_cont_times, num_genes, module_type, col1a_activates_e1_real)
     elif gen_net == 'brownian':
         args_fit.output = args_fit.output+'-bm'
         step_size = 0.05
-        x_true_cont = np.empty((num_cont_times, num_genes*2))
-        x_true_cont[0, :] = np.random.rand(num_genes*2)
-        for i in range(num_cont_times-1):
-            for j in range(num_genes*2):
-                # Project increment to [-0.5, 0.5] to make sure at least one of x+increment and x-increment is in [0, 1].
-                increment = max(min(np.random.randn()*step_size, 0.5), -0.5)
-                if x_true_cont[i, j]+increment > 1 or x_true_cont[i, j]+increment < 0:
-                    x_true_cont[i+1, j] = x_true_cont[i, j]-increment
-                else:
-                    x_true_cont[i+1, j] = x_true_cont[i, j]+increment
-        x_sampled = x_true_cont[0:num_cont_times:int((num_cont_times-1)/(num_samp_times-1)), :]
+        x_true_cont = np.empty((num_exp, num_cont_times, num_genes*2))
+        x_true_cont[:, 0, :] = np.random.rand(num_exp, num_genes*2)
+        for k in range(num_exp):
+            for i in range(num_cont_times-1):
+                for j in range(num_genes*2):
+                    # Project increment to [-0.5, 0.5] to make sure at least one of x+increment and x-increment is in [0, 1].
+                    increment = max(min(np.random.randn()*step_size, 0.5), -0.5)
+                    if x_true_cont[k, i, j]+increment > 1 or x_true_cont[k, i, j]+increment < 0:
+                        x_true_cont[k, i+1, j] = x_true_cont[k, i, j]-increment
+                    else:
+                        x_true_cont[k, i+1, j] = x_true_cont[k, i, j]+increment
+        x_sampled = x_true_cont[:, 0:num_cont_times:int((num_cont_times-1)/(num_samp_times-1)), :]
     else:
         raise ValueError
     # Fit data.
