@@ -203,8 +203,8 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode, num_exp=1):
     Args:
         hill_dict: dict
             Hill coefficients.
-        span: float
-            Time span.
+        span: float or None
+            Time span.  If span is None, it is assumed unknown and will be optimized, starting from a random initial value between 0 and 100.
         module_type: array
             Modules types of genes 3 and 5.
         ode_func: callable, optional
@@ -328,7 +328,10 @@ def get_params(hill_dict, span, module_type, ode_func=flower_ode, num_exp=1):
         for j in range(1, 6):
             fit_params.add('x_{}_{}'.format(i, j), value=np.random.rand(), min=0, max=1)
             fit_params.add('y_{}_{}'.format(i, j), value=np.random.rand(), min=0, max=1)
-    fit_params.add('span', value=span, vary=False)
+    if span is None:
+        fit_params.add('span', value=np.random.rand()*100, vary=True)
+    else:
+        fit_params.add('span', value=span, vary=False)
     fit_params.add('num_exp', value=num_exp, vary=False)
     return fit_params
 
@@ -936,11 +939,11 @@ def fit_and_compare(x_sampled, args, x_true_cont):
     for j in range(x_sampled.shape[0]):
         fig, ax = plt.subplots()
         for i in range(5):
-            ax.plot(np.linspace(0, args.span, num_cont_times), x_true_cont[j, :, i], label='gene {}'.format(i+1))
+            ax.plot(np.linspace(0, result.params['span'].value, num_cont_times), x_true_cont[j, :, i], label='gene {}'.format(i+1))
         ax.set_prop_cycle(None)
-        ax.plot(np.linspace(0, args.span, num_cont_times), x_fit_cont[j, :, 0:5], '--')
+        ax.plot(np.linspace(0, result.params['span'].value, num_cont_times), x_fit_cont[j, :, 0:5], '--')
         ax.set_prop_cycle(None)
-        ax.plot(np.linspace(0, args.span, num_samp_times), x_sampled[j, :, 0:5], 'o')
+        ax.plot(np.linspace(0, result.params['span'].value, num_samp_times), x_sampled[j, :, 0:5], 'o')
         lgd = ax.legend(bbox_to_anchor=(0., 1.02, 1., .102),
                         loc=3, ncol=1, borderaxespad=0.)
         fig.savefig(args.output+'-e{}.eps'.format(j), bbox_extra_artists=(lgd,),
@@ -952,8 +955,8 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
     """Generate synthetic data and fit the ODE models to the data.
 
     Args:
-        span_fit: float, optional
-            Span for fitting.
+        span_fit: float or None, optional
+            Span for fitting.  If span_fit is None, it is assumed to be unknown and will be estimated.
         module_type_fit: list, optional
             Module types for fitting.
         ode_func_fit: callable, optional
