@@ -948,7 +948,7 @@ def fit_and_compare(x_sampled, args, x_true_cont):
     pickle.dump({'result': result}, open(args.output+'.pkl', 'wb'))
 
 
-def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1_fit=True, niter=10, tol=0.01, gen_net='flower', rand_seed=0, num_exp=1):
+def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, col1a_activates_e1_fit=True, niter=10, tol=0.01, gen_net='flower', rand_seed=0, num_exp=1, col1a_activates_e1_real=True):
     """Generate synthetic data and fit the ODE models to the data.
 
     Args:
@@ -970,6 +970,8 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
                 'brownian': Generate data with a reflected Brownian motion.
         num_exp: int, optional
             Number of experiments.
+        col1a_activates_e1_real: bool, optional
+            Sign of edge from COL1a to E1 in ground truth.
 
     Returns: None
         Saves figure and optimization result in files.
@@ -982,9 +984,8 @@ def fit_synthetic(span_fit=6, module_type_fit=[0, 0], ode_func_fit=flower_ode, c
     num_genes = 5
     args_fit = FitArgs(span_fit, module_type_fit, niter, tol, ode_func=ode_func_fit, col1a_activates_e1=col1a_activates_e1_fit, data_type='synthetic', num_exp=num_exp)
     if gen_net == 'flower':
-        args_fit.output = args_fit.output+'-fl'
+        args_fit.output = args_fit.output+'-fl{}'.format(col1a_activates_e1_real)
         module_type = [0, 0]
-        col1a_activates_e1_real = True
         # This FitArgs object is only used to get the hill_dict variable.  No actual fitting happens.
         args_gen = FitArgs(span, module_type, niter, tol)
         params = get_params(args_gen.hill_dict, span, module_type, num_exp=num_exp)
