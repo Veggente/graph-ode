@@ -469,28 +469,35 @@ def plot_fit(num_genes, result, sat, module_type, show_legend,
         else:
             lgd = None
         if disp:
-            show_opt_result(result)
+            show_opt_result(result, x_data_normalized)
         if output:
             fig.savefig(output, bbox_extra_artists=(lgd,),
                         bbox_inches='tight')
 
 
-def show_opt_result(result):
+def show_opt_result(result, samples):
     """Show optimization result.
 
     Args:
         result: lmfit.minimizer.MinimizerResult
             Optimization result.
+        samples: array
+            Samples to fit.
 
     Return: str
         Optimization result.
     """
+    ss_total = np.linalg.norm(samples-np.mean(samples))**2
     return """Number of function evaluations: {}
 AIC: {}
 Square root of average square of difference: {}
+Total sum of squares: {}
+Coefficient of determination: {}
         """.format(
             result.nfev, result.aic,
-            np.sqrt(np.mean(result.residual**2))
+            np.sqrt(np.mean(result.residual**2)),
+            ss_total,
+            1-np.linalg.norm(result.residual)**2/ss_total
             )
 
 
@@ -933,7 +940,7 @@ def fit_and_compare(x_sampled, args, x_true_cont):
     end_time = time.time()
     with open(args.output+'.txt', 'w+') as f:
         f.write('Time elapsed: '+str(end_time-start_time)+'\n')
-        f.write(show_opt_result(result))
+        f.write(show_opt_result(result, x_sampled))
     # Compare trajectories.
     x_fit_cont = solve_flower_ode(result.params, args.sat, num_cont_times, num_genes, args.module_type, args.col1a_activates_e1, ode_func=args.ode_func)
     for j in range(x_sampled.shape[0]):
